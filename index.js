@@ -507,3 +507,5 @@ async function exportToCSV(ctx) {
 }
 
 bot.launch().then(() => console.log('Bot with Goals, Custom Categories, and CSV Export is running...'));
+const http = require('http');
+http.createServer((req, res) => res.end('Bot is alive!')).listen(process.env.PORT || 3000);
