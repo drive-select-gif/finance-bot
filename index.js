@@ -20,16 +20,15 @@ const cancelMenu = Markup.inlineKeyboard([
   [Markup.button.callback('❌ Չեղարկել', 'ACTION_CANCEL')]
 ]);
 
-
 bot.telegram.setMyCommands([
   { command: 'start', description: 'Գլխավոր մենյու' },
   { command: 'balance', description: 'Տեսնել հաշվեկշիռը' }
 ]);
 
-// Այս տողը զրոյացնում է Mini App-ը և միացնում ստանդարտ հրամանների կոճակը
 bot.telegram.setChatMenuButton({
   menu_button: { type: 'commands' }
 });
+
 // --- /START ---
 bot.start(async (ctx) => {
   const userId = String(ctx.from.id);
@@ -101,7 +100,7 @@ bot.action('ACTION_CANCEL', (ctx) => {
   ctx.reply('🚫 Գործողությունը չեղարկված է:', mainMenu);
 });
 
-// --- 🏷 ԱՆՀԱՏԱԿԱՆ ԿԱՏԵԳՈՐԻԱՆԵՐԻ ԿԱՌԱՎԱՐՈՒՄ ---
+// --- CUSTOM CATEGORIES ---
 bot.action('ACTION_CUSTOM_CATS', async (ctx) => {
   ctx.answerCbQuery();
   const userId = String(ctx.from.id);
@@ -132,7 +131,6 @@ bot.action('ADD_CUSTOM_CAT', (ctx) => {
 });
 
 async function showExpenseCategoriesMenu(ctx, userId) {
-  // Ստանում ենք լռելյայն + անհատական կատեգորիաները
   const defaultCats = ['🚗 Տրանսպորտ', '🍔 Ուտելիք', '🛒 Խանութ', '🏠 Բնակարան'];
   const { data: customCats } = await supabase.from('custom_categories').select('name').eq('user_id', userId).eq('type', 'expense');
 
@@ -143,7 +141,6 @@ async function showExpenseCategoriesMenu(ctx, userId) {
   }
   buttons.push(Markup.button.callback('📦 Այլ (գրել նշում)', 'CAT_Այլ'));
 
-  // Կոճակները դասավորում ենք 2-ական շարքերով
   const rows = [];
   for (let i = 0; i < buttons.length; i += 2) {
     rows.push(buttons.slice(i, i + 2));
@@ -160,7 +157,7 @@ bot.action(/CAT_(.+)/, (ctx) => {
   ctx.reply(`Որքա՞ն ծախսեցիք «<b>${category}</b>»-ի համար:\n<i>(Գրեք միայն թվեր)</i>`, { parse_mode: 'HTML', ...cancelMenu });
 });
 
-// --- 🎯 ԽՆԱՅՈՂՈՒԹՅՈՒՆՆԵՐԻ ՆՊԱՏԱԿՆԵՐ ---
+// --- GOALS ---
 bot.action('ACTION_GOALS', async (ctx) => {
   ctx.answerCbQuery();
   const userId = String(ctx.from.id);
@@ -189,7 +186,7 @@ async function renderGoalsMenu(ctx, userId) {
   }
 
   buttons.push([Markup.button.callback('➕ Ստեղծել Նոր Նպատակ', 'CREATE_GOAL')]);
-  buttons.push([Markup.button.callback('⬅️ Հետ', 'ACTION_CANCEL')]);
+  buttons.push([Markup.button.callback('⬅️️ Հետ', 'ACTION_CANCEL')]);
 
   ctx.reply(message, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
 }
@@ -207,13 +204,13 @@ bot.action(/DEPOSIT_GOAL_(.+)/, (ctx) => {
   ctx.reply('Որքա՞ն գումար եք ուզում ավելացնել այս նպատակին:', cancelMenu);
 });
 
-// --- ՎՃԱՐՄԱՆ ԵՂԱՆԱԿԻ ԸՆՏՐՈՒԹՅՈՒՆ ---
+// --- PAYMENT METHOD ---
 bot.action(['PAY_CARD', 'PAY_CASH'], async (ctx) => {
   ctx.answerCbQuery();
   const userId = String(ctx.from.id);
   const state = userState[userId];
 
-  if (!state) return ctx.reply('⚠️ Սխալ: Խնդրում ենք սկսել նորից:', mainMenu);
+  if (!state) return ctx.reply('⚠️️ Սխալ: Խնդրում ենք սկսել նորից:', mainMenu);
 
   state.paymentMethod = ctx.match[0] === 'PAY_CARD' ? 'card' : 'cash';
 
@@ -225,7 +222,7 @@ bot.action(['PAY_CARD', 'PAY_CASH'], async (ctx) => {
   saveTransaction(ctx, userId, state);
 });
 
-// --- ՏԵՔՍՏԱՅԻՆ ՀԱՂՈՐԴԱԳՐՈՒԹՅՈՒՆՆԵՐԻ ՄՇԱԿՈՒՄ ---
+// --- TEXT MESSAGES HANDLER ---
 bot.on('text', async (ctx) => {
   const text = ctx.message.text.trim();
   const userId = String(ctx.from.id);
@@ -235,14 +232,12 @@ bot.on('text', async (ctx) => {
     return ctx.reply('Խնդրում եմ ընտրել գործողություն ներքևի կոճակներով:', mainMenu);
   }
 
-  // 1. Անհատական կատեգորիայի ավելացում
   if (state.step === 'AWAIT_NEW_CAT_NAME') {
     await supabase.from('custom_categories').insert([{ user_id: userId, name: text, type: 'expense' }]);
     delete userState[userId];
     return ctx.reply(`✅ «<b>${text}</b>» կատեգորիան հաջողությամբ ավելացվեց:`, { parse_mode: 'HTML', ...mainMenu });
   }
 
-  // 2. Նպատակի ստեղծում - Անուն
   if (state.step === 'AWAIT_GOAL_TITLE') {
     state.goalTitle = text;
     state.step = 'AWAIT_GOAL_TARGET';
@@ -250,7 +245,6 @@ bot.on('text', async (ctx) => {
     return ctx.reply(`Որքա՞ն է «<b>${text}</b>»-ի թիրախային գումարը:`, { parse_mode: 'HTML', ...cancelMenu });
   }
 
-  // 3. Նպատակի ստեղծում - Թիրախային գումար
   if (state.step === 'AWAIT_GOAL_TARGET') {
     if (isNaN(text) || parseFloat(text) <= 0) return ctx.reply('⚠️ Մուտքագրեք ճիշտ թիվ:');
     await supabase.from('goals').insert([{ user_id: userId, title: state.goalTitle, target_amount: parseFloat(text) }]);
@@ -259,7 +253,6 @@ bot.on('text', async (ctx) => {
     return renderGoalsMenu(ctx, userId);
   }
 
-  // 4. Նպատակին գումարի ավելացում
   if (state.step === 'AWAIT_GOAL_DEPOSIT') {
     if (isNaN(text) || parseFloat(text) <= 0) return ctx.reply('⚠️ Մուտքագրեք ճիշտ թիվ:');
     const deposit = parseFloat(text);
@@ -274,13 +267,11 @@ bot.on('text', async (ctx) => {
     return renderGoalsMenu(ctx, userId);
   }
 
-  // 5. Նշում «Այլ» կատեգորիայի համար
   if (state.step === 'AWAIT_DESCRIPTION') {
     saveTransaction(ctx, userId, state, text);
     return;
   }
 
-  // 6. Թվային մուտքագրումների ստուգում
   const isAmountStep = ['SETUP_CARD', 'SETUP_CASH', 'AWAIT_INCOME_AMOUNT', 'AWAIT_EXPENSE_AMOUNT'].includes(state.step);
   if (isAmountStep) {
     if (isNaN(text) || parseFloat(text) < 0) {
@@ -331,7 +322,7 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// --- ՕԳՆԱԿԱՆ ՖՈՒՆԿՑԻԱՆԵՐ ---
+// --- HELPER FUNCTIONS ---
 function askPaymentMethod(ctx, messageText) {
   ctx.reply(messageText, Markup.inlineKeyboard([
     [Markup.button.callback('💳 Քարտով', 'PAY_CARD'), Markup.button.callback('💵 Կանխիկ', 'PAY_CASH')],
@@ -460,7 +451,6 @@ async function generateMonthlyReport(ctx) {
   }
 }
 
-// 📁 CSV Excel Արտահանման ֆունկցիա
 async function exportToCSV(ctx) {
   const userId = String(ctx.from.id);
   try {
@@ -470,16 +460,9 @@ async function exportToCSV(ctx) {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Supabase Error:', error);
-      throw error;
-    }
+    if (error) throw error;
+    if (!data || data.length === 0) return ctx.reply('📭 Տվյալներ չկան արտահանելու համար:', mainMenu);
 
-    if (!data || data.length === 0) {
-      return ctx.reply('📭 Տվյալներ չկան արտահանելու համար:', mainMenu);
-    }
-
-    // UTF-8 BOM (\uFEFF) որպեսզի Excel-ը հայերեն տառերը ճիշտ ցույց տա
     let csvContent = '\uFEFFԱմսաթիվ,Տեսակ,Կատեգորիա,Գումար (֏),Վճարման եղանակ,Նկարագրություն\n';
 
     data.forEach(item => {
@@ -501,11 +484,21 @@ async function exportToCSV(ctx) {
     });
 
   } catch (err) {
-    console.error('Export CSV Error:', err); // Տերմինալում ցույց կտա բուն սխալը
+    console.error('Export CSV Error:', err);
     ctx.reply('❌ Սխալ՝ CSV ֆայլը պատրաստելիս:', mainMenu);
   }
 }
 
-bot.launch().then(() => console.log('Bot with Goals, Custom Categories, and CSV Export is running...'));
-const http = require('http');
-http.createServer((req, res) => res.end('Bot is alive!')).listen(process.env.PORT || 3000);
+// --- VERCEL SERVERLESS HANDLER ---
+module.exports = async (req, res) => {
+  try {
+    if (req.method === 'POST') {
+      await bot.handleUpdate(req.body, res);
+    } else {
+      res.status(200).send('Finance Bot Webhook is active on Vercel!');
+    }
+  } catch (error) {
+    console.error('Webhook Error:', error);
+    res.status(500).send('Internal Server Error');
+  }
+};
