@@ -20,15 +20,6 @@ const cancelMenu = Markup.inlineKeyboard([
   [Markup.button.callback('❌ Չեղարկել', 'ACTION_CANCEL')]
 ]);
 
-bot.telegram.setMyCommands([
-  { command: 'start', description: 'Գլխավոր մենյու' },
-  { command: 'balance', description: 'Տեսնել հաշվեկշիռը' }
-]);
-
-bot.telegram.setChatMenuButton({
-  menu_button: { type: 'commands' }
-});
-
 // --- /START ---
 bot.start(async (ctx) => {
   const userId = String(ctx.from.id);
@@ -38,13 +29,13 @@ bot.start(async (ctx) => {
     const { data } = await supabase.from('transactions').select('id').eq('user_id', userId).limit(1);
     
     if (data && data.length > 0) {
-      ctx.reply('👋 Բարև նորից! Ահա Ձեր գլխավոր մենյուն՝', mainMenu);
+      return ctx.reply('👋 Բարև նորից! Ահա Ձեր գլխավոր մենյուն՝', mainMenu);
     } else {
       userState[userId] = { step: 'SETUP_CARD' };
-      ctx.reply('👋 Բարև! Եկեք կարգավորենք Ձեր բյուջեն:\n\n💳 Մուտքագրեք Ձեր <b>ՔԱՐՏԻ</b> վրա առկա գումարը (օրինակ՝ 50000):', { parse_mode: 'HTML' });
+      return ctx.reply('👋 Բարև! Եկեք կարգավորենք Ձեր բյուջեն:\n\n💳 Մուտքագրեք Ձեր <b>ՔԱՐՏԻ</b> վրա առկա գումարը (օրինակ՝ 50000):', { parse_mode: 'HTML' });
     }
   } catch (error) {
-    ctx.reply('❌ Համակարգային սխալ: Խնդրում ենք փորձել մի փոքր ուշ:');
+    return ctx.reply('❌ Համակարգային սխալ: Խնդրում ենք փորձել մի փոքր ուշ:');
   }
 });
 
@@ -186,7 +177,7 @@ async function renderGoalsMenu(ctx, userId) {
   }
 
   buttons.push([Markup.button.callback('➕ Ստեղծել Նոր Նպատակ', 'CREATE_GOAL')]);
-  buttons.push([Markup.button.callback('⬅️️ Հետ', 'ACTION_CANCEL')]);
+  buttons.push([Markup.button.callback('⬅ Հետ', 'ACTION_CANCEL')]);
 
   ctx.reply(message, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
 }
@@ -210,7 +201,7 @@ bot.action(['PAY_CARD', 'PAY_CASH'], async (ctx) => {
   const userId = String(ctx.from.id);
   const state = userState[userId];
 
-  if (!state) return ctx.reply('⚠️️ Սխալ: Խնդրում ենք սկսել նորից:', mainMenu);
+  if (!state) return ctx.reply('⚠ Սխալ: Խնդրում ենք սկսել նորից:', mainMenu);
 
   state.paymentMethod = ctx.match[0] === 'PAY_CARD' ? 'card' : 'cash';
 
@@ -493,7 +484,8 @@ async function exportToCSV(ctx) {
 module.exports = async (req, res) => {
   try {
     if (req.method === 'POST') {
-      await bot.handleUpdate(req.body, res);
+      await bot.handleUpdate(req.body);
+      res.status(200).end();
     } else {
       res.status(200).send('Finance Bot Webhook is active on Vercel!');
     }
